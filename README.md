@@ -33,7 +33,7 @@ Installation uses [git](https://git-scm.com/), which must be installed and avail
 To install, run git clone into the cross-client `~/.agents/skills/` convention using one of the commands below.
 
 > [!IMPORTANT]
-> The commands below are written for a **Bash** or **Z shell** — run them in **Terminal** on macOS/Linux, or in **Git Bash** on Windows (installed with Git for Windows). They won't run as-is in Windows CMD or PowerShell.
+> The commands below are written for a Bash or Z shell — run them in **Terminal on macOS/Linux**, or in **Git Bash on Windows** (installed with Git for Windows). **They won't run as-is in Windows CMD or PowerShell.**
 
 ### TestRail
 
