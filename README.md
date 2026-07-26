@@ -1,11 +1,12 @@
 # Sembi IQ — Agent skills
 
-Agent-agnostic skills for the [TestRail](https://www.testrail.com/) and [Testmo](https://www.testmo.com/) test-management platforms — for any agent that supports the [Agent Skills](https://agentskills.io/specification) convention.
+Agent-agnostic skills for the [TestRail](https://www.testrail.com/), [Testmo](https://www.testmo.com/), and [Xray](https://www.getxray.app/) test-management platforms — for any agent that supports the [Agent Skills](https://agentskills.io/specification) convention.
 
-Two test-driven workflows, one skill each, backed by the Testmo or TestRail MCP server:
+Test-driven workflows, one skill each, backed by the Testmo, TestRail, or Xray MCP server:
 
 - **`spec-implementer`** — implement a feature whose acceptance criteria already exist as test cases. Reads the live cases and writes code that satisfies every one.
 - **`change-evaluator`** — predict whether recent code changes will make test cases pass or fail, before running the suite.
+- **`import`** — import test cases from a spreadsheet, CSV, Markdown, XML, plaintext, or test code into the platform. Presents what it found for review and writes nothing until you confirm. Testmo and TestRail only.
 
 ## Using Claude
 
@@ -15,18 +16,30 @@ If your agent is Claude (Claude Code, Claude Desktop, or Claude on the web), ins
 
 ### Configure the Sembi MCP Server
 
-These skills call the remote Sembi MCP server's tools, so you must have the matching server connected — **Testmo** for the Testmo skills, **TestRail** for the TestRail skills. (Each skill records this in its `compatibility` field.)
+These skills call the remote Sembi MCP server's tools, so you must have the matching server connected — **Testmo** for the Testmo skills, **TestRail** for the TestRail skills, **Xray** for the Xray skills.
 
 **For TestRail**, follow the MCP connection steps at: [https://testrail.sembi.com/](https://testrail.sembi.com/)
 
 **For Testmo**, follow the MCP connection steps at: [https://testmo.sembi.com/](https://testmo.sembi.com/)
 
+**For Xray**, follow the MCP connection steps at: [https://xray.sembi.com/](https://xray.sembi.com/)
+
 > [!IMPORTANT]
 > If the MCP server isn't connected, the skills will reference tools that aren't available.
+
+The `spec-implementer` and `change-evaluator` skills only read, so a read-only connection is enough for them. The **`import` skill creates cases and folders**, so it needs a connection with write access.
 
 ### Git
 
 Installation uses [git](https://git-scm.com/), which must be installed and available.
+
+### Python — for Excel and CSV imports only
+
+The `import` skill needs a Python interpreter on the `PATH` **when importing Excel or CSV**, because it runs bundled scripts to parse those formats. Markdown, XML, plaintext, and test-code sources are read directly, and need no Python. Where it is needed, the skill probes for it (`python3`, then `python`, then `py`); if none is found it offers to install Python for your platform, with your permission.
+
+No packages and no virtual environment are needed — `.xlsx` and `.csv` are read with the standard library alone. Legacy `.xls` is the one exception, needing the pure-Python `xlrd` package, which the skill installs only if and when an `.xls` source actually appears.
+
+The `spec-implementer` and `change-evaluator` skills need no Python at all.
 
 ## Installation
 
@@ -50,7 +63,10 @@ This results in the following layout on your file system:
 ~/.agents/skills/sembi-iq/
 └── testrail/
     ├── testrail-spec-implementer/SKILL.md
-    └── testrail-change-evaluator/SKILL.md
+    ├── testrail-change-evaluator/SKILL.md
+    └── testrail-import/
+        ├── SKILL.md
+        └── scripts/
 ```
 
 ### Testmo
@@ -68,7 +84,28 @@ This results in the following layout on your file system:
 ~/.agents/skills/sembi-iq/
 └── testmo/
     ├── testmo-spec-implementer/SKILL.md
-    └── testmo-change-evaluator/SKILL.md
+    ├── testmo-change-evaluator/SKILL.md
+    └── testmo-import/
+        ├── SKILL.md
+        └── scripts/
+```
+
+### Xray
+
+**For Xray**, run the following command:
+
+```zsh
+git clone --filter=blob:none --sparse git@github.com:SembiIQ/sembi-iq-skills.git ~/.agents/skills/sembi-iq \
+  && git -C ~/.agents/skills/sembi-iq sparse-checkout set xray
+```
+
+This results in the following layout on your file system:
+
+```
+~/.agents/skills/sembi-iq/
+└── xray/
+    ├── xray-spec-implementer/SKILL.md
+    └── xray-change-evaluator/SKILL.md
 ```
 
 ### Updates
@@ -83,12 +120,15 @@ git -C ~/.agents/skills/sembi-iq pull
 
 Skills are auto-activated by the agent when a task matches the skill's description (the Agent Skills progressive-disclosure model); some agents also let you reference a skill by name, often with a slash command. Refer to the agent skills documentation for the specific details on directly invoking skills.
 
+The `import` skills are the exception — they are marked user-invoked only, so ask for one by name rather than expecting it to activate on its own.
+
 ### TestRail
 
 | Skill                       | What it does                                           |
 |-----------------------------|--------------------------------------------------------|
 | `testrail-spec-implementer` | Implement a feature from TestRail test cases           |
 | `testrail-change-evaluator` | Predict pass/fail of TestRail cases for recent changes |
+| `testrail-import`           | Import test cases from a source file into TestRail     |
 
 ### Testmo
 
@@ -96,3 +136,11 @@ Skills are auto-activated by the agent when a task matches the skill's descripti
 |----------------------------|------------------------------------------------------|
 | `testmo-spec-implementer`  | Implement a feature from Testmo test cases           |
 | `testmo-change-evaluator`  | Predict pass/fail of Testmo cases for recent changes |
+| `testmo-import`            | Import test cases from a source file into Testmo     |
+
+### Xray
+
+| Skill                   | What it does                                       |
+|-------------------------|----------------------------------------------------|
+| `xray-spec-implementer` | Implement a feature from Xray Tests                |
+| `xray-change-evaluator` | Predict pass/fail of Xray Tests for recent changes |

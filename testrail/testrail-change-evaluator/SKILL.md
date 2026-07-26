@@ -121,7 +121,7 @@ Sort the table: FAIL first, then UNCERTAIN, then PASS.
 
 ## Constraints
 
-- **Don't modify code, run tests, commit, push, or open PRs.** This prompt is analytical; do not make changes as a side effect.
+- **Don't modify code, run tests, commit, push, or open PRs.** This is an analytical task; do not make changes as a side effect.
 - **TestRail access here is read-only.** Do not create, update, or delete cases, sections, suites, runs, results, or any other TestRail data — even to "fix" a case you think is wrong.
 - **Scope to recent changes only.** Do not evaluate the entire codebase unless asked.
 - **Be precise.** Tie each outcome to a specific line or behavior in the changed code.
