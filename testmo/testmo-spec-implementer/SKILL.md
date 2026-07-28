@@ -134,7 +134,7 @@ Anything the test cases do not specify that you had to decide — defaults, fiel
 
 ## Constraints
 
-- **No new dependencies.** Do not introduce new packages or libraries.
+- **Get approval before adding a dependency.** Prefer what the project already has, and reuse it wherever it will do. If a test case genuinely cannot be satisfied without a new package or library, stop and ask: name the package, say what it is for, and say what satisfying the case without it would cost. Add it only once the user agrees.
 - **Stay in scope.** Do not modify files outside the scope of the feature unless a test case explicitly requires it.
 - **Don't run tests, commit, push, or open PRs unless explicitly asked.** Implementation is the role; verification and shipping belong to the developer or QA.
 - **Testmo access here is read-only.** Do not create, update, or delete cases, folders, runs, or any other Testmo data — even to "fix" a case you think is wrong.

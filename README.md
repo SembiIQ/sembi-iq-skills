@@ -5,6 +5,7 @@ Agent-agnostic skills for the [TestRail](https://www.testrail.com/), [Testmo](ht
 Test-driven workflows, one skill each, backed by the Testmo, TestRail, or Xray MCP server:
 
 - **`spec-implementer`** — implement a feature whose acceptance criteria already exist as test cases. Reads the live cases and writes code that satisfies every one.
+- **`regression-preventer`** — guard new or in-progress code against breaking behavior that existing test cases already protect. Works out what the change can reach, reads the cases guarding it, and presents a guard rail brief for your confirmation before writing or repairing any code. Xray only.
 - **`change-evaluator`** — predict whether recent code changes will make test cases pass or fail, before running the suite.
 - **`import`** — import test cases from a spreadsheet, CSV, Markdown, XML, plaintext, or test code into the platform. Presents what it found for review and writes nothing until you confirm. Testmo and TestRail only.
 
@@ -27,7 +28,7 @@ These skills call the remote Sembi MCP server's tools, so you must have the matc
 > [!IMPORTANT]
 > If the MCP server isn't connected, the skills will reference tools that aren't available.
 
-The `spec-implementer` and `change-evaluator` skills only read, so a read-only connection is enough for them. The **`import` skill creates cases and folders**, so it needs a connection with write access.
+The `spec-implementer`, `regression-preventer`, and `change-evaluator` skills only read, so a read-only connection is enough for them. The **`import` skill creates cases and folders**, so it needs a connection with write access.
 
 ### Git
 
@@ -39,11 +40,13 @@ The `import` skill needs a Python interpreter on the `PATH` **when importing Exc
 
 No packages and no virtual environment are needed — `.xlsx` and `.csv` are read with the standard library alone. Legacy `.xls` is the one exception, needing the pure-Python `xlrd` package, which the skill installs only if and when an `.xls` source actually appears.
 
-The `spec-implementer` and `change-evaluator` skills need no Python at all.
+The `spec-implementer`, `regression-preventer`, and `change-evaluator` skills need no Python at all.
 
 ## Installation
 
-To install, run git clone into the cross-client `~/.agents/skills/` convention using one of the commands below.
+To install, run one of the commands below. Each clones the repo to `~/.sembi-iq-skills`, then copies that product's skills into the cross-client `~/.agents/skills/` convention.
+
+Agents look for skills as direct children of `~/.agents/skills/` — Zed states this explicitly — so the skills are copied rather than left nested under the clone.
 
 > [!IMPORTANT]
 > The commands below are written for a Bash or Z shell — run them in **Terminal on macOS/Linux**, or in **Git Bash on Windows** (installed with Git for Windows). **They won't run as-is in Windows CMD or PowerShell.**
@@ -53,20 +56,21 @@ To install, run git clone into the cross-client `~/.agents/skills/` convention u
 **For TestRail**, run the following command:
 
 ```zsh
-git clone --filter=blob:none --sparse git@github.com:SembiIQ/sembi-iq-skills.git ~/.agents/skills/sembi-iq \
-  && git -C ~/.agents/skills/sembi-iq sparse-checkout set testrail
+git clone --filter=blob:none --sparse https://github.com/SembiIQ/sembi-iq-skills.git ~/.sembi-iq-skills \
+  && git -C ~/.sembi-iq-skills sparse-checkout set testrail \
+  && mkdir -p ~/.agents/skills \
+  && cp -R ~/.sembi-iq-skills/testrail/* ~/.agents/skills/
 ```
 
 This results in the following layout on your file system:
 
 ```
-~/.agents/skills/sembi-iq/
-└── testrail/
-    ├── testrail-spec-implementer/SKILL.md
-    ├── testrail-change-evaluator/SKILL.md
-    └── testrail-import/
-        ├── SKILL.md
-        └── scripts/
+~/.agents/skills/
+├── testrail-spec-implementer/SKILL.md
+├── testrail-change-evaluator/SKILL.md
+└── testrail-import/
+    ├── SKILL.md
+    └── scripts/
 ```
 
 ### Testmo
@@ -74,20 +78,21 @@ This results in the following layout on your file system:
 **For Testmo**, run the following command:
 
 ```zsh
-git clone --filter=blob:none --sparse git@github.com:SembiIQ/sembi-iq-skills.git ~/.agents/skills/sembi-iq \
-  && git -C ~/.agents/skills/sembi-iq sparse-checkout set testmo
+git clone --filter=blob:none --sparse https://github.com/SembiIQ/sembi-iq-skills.git ~/.sembi-iq-skills \
+  && git -C ~/.sembi-iq-skills sparse-checkout set testmo \
+  && mkdir -p ~/.agents/skills \
+  && cp -R ~/.sembi-iq-skills/testmo/* ~/.agents/skills/
 ```
 
 This results in the following layout on your file system:
 
 ```
-~/.agents/skills/sembi-iq/
-└── testmo/
-    ├── testmo-spec-implementer/SKILL.md
-    ├── testmo-change-evaluator/SKILL.md
-    └── testmo-import/
-        ├── SKILL.md
-        └── scripts/
+~/.agents/skills/
+├── testmo-spec-implementer/SKILL.md
+├── testmo-change-evaluator/SKILL.md
+└── testmo-import/
+    ├── SKILL.md
+    └── scripts/
 ```
 
 ### Xray
@@ -95,25 +100,27 @@ This results in the following layout on your file system:
 **For Xray**, run the following command:
 
 ```zsh
-git clone --filter=blob:none --sparse git@github.com:SembiIQ/sembi-iq-skills.git ~/.agents/skills/sembi-iq \
-  && git -C ~/.agents/skills/sembi-iq sparse-checkout set xray
+git clone --filter=blob:none --sparse https://github.com/SembiIQ/sembi-iq-skills.git ~/.sembi-iq-skills \
+  && git -C ~/.sembi-iq-skills sparse-checkout set xray \
+  && mkdir -p ~/.agents/skills \
+  && cp -R ~/.sembi-iq-skills/xray/* ~/.agents/skills/
 ```
 
 This results in the following layout on your file system:
 
 ```
-~/.agents/skills/sembi-iq/
-└── xray/
-    ├── xray-spec-implementer/SKILL.md
-    └── xray-change-evaluator/SKILL.md
+~/.agents/skills/
+├── xray-spec-implementer/SKILL.md
+├── xray-regression-preventer/SKILL.md
+└── xray-change-evaluator/SKILL.md
 ```
 
 ### Updates
 
-Check for updates at any time later by running:
+Check for updates at any time later by pulling and re-copying — substitute the product you installed:
 
 ```zsh
-git -C ~/.agents/skills/sembi-iq pull
+git -C ~/.sembi-iq-skills pull && cp -R ~/.sembi-iq-skills/testrail/* ~/.agents/skills/
 ```
 
 ## Usage
@@ -140,7 +147,8 @@ The `import` skills are the exception — they are marked user-invoked only, so 
 
 ### Xray
 
-| Skill                   | What it does                                       |
-|-------------------------|----------------------------------------------------|
-| `xray-spec-implementer` | Implement a feature from Xray Tests                |
-| `xray-change-evaluator` | Predict pass/fail of Xray Tests for recent changes |
+| Skill                       | What it does                                       |
+|-----------------------------|----------------------------------------------------|
+| `xray-spec-implementer`     | Implement a feature from Xray Tests                |
+| `xray-regression-preventer` | Guard changes against breaking existing Xray Tests |
+| `xray-change-evaluator`     | Predict pass/fail of Xray Tests for recent changes |
