@@ -5,7 +5,7 @@ Agent-agnostic skills for the [TestRail](https://www.testrail.com/), [Testmo](ht
 Test-driven workflows, one skill each, backed by the Testmo, TestRail, or Xray MCP server:
 
 - **`spec-implementer`** — implement a feature whose acceptance criteria already exist as test cases. Reads the live cases and writes code that satisfies every one.
-- **`regression-preventer`** — guard new or in-progress code against breaking behavior that existing test cases already protect. Works out what the change can reach, reads the cases guarding it, and presents a guard rail brief for your confirmation before writing or repairing any code. Xray only.
+- **`regression-preventer`** — guard new or in-progress code against breaking behavior that existing test cases already protect. Works out what the change can reach, reads the cases guarding it, and presents a guard rail brief for your confirmation before writing or repairing any code.
 - **`change-evaluator`** — predict whether recent code changes will make test cases pass or fail, before running the suite.
 - **`import`** — import test cases from a spreadsheet, CSV, Markdown, XML, plaintext, or test code into the platform. Presents what it found for review and writes nothing until you confirm. Testmo and TestRail only.
 
@@ -67,6 +67,7 @@ This results in the following layout on your file system:
 ```
 ~/.agents/skills/
 ├── testrail-spec-implementer/SKILL.md
+├── testrail-regression-preventer/SKILL.md
 ├── testrail-change-evaluator/SKILL.md
 └── testrail-import/
     ├── SKILL.md
@@ -89,6 +90,7 @@ This results in the following layout on your file system:
 ```
 ~/.agents/skills/
 ├── testmo-spec-implementer/SKILL.md
+├── testmo-regression-preventer/SKILL.md
 ├── testmo-change-evaluator/SKILL.md
 └── testmo-import/
     ├── SKILL.md
@@ -131,19 +133,21 @@ The `import` skills are the exception — they are marked user-invoked only, so 
 
 ### TestRail
 
-| Skill                       | What it does                                           |
-|-----------------------------|--------------------------------------------------------|
-| `testrail-spec-implementer` | Implement a feature from TestRail test cases           |
-| `testrail-change-evaluator` | Predict pass/fail of TestRail cases for recent changes |
-| `testrail-import`           | Import test cases from a source file into TestRail     |
+| Skill                           | What it does                                           |
+|---------------------------------|--------------------------------------------------------|
+| `testrail-spec-implementer`     | Implement a feature from TestRail test cases           |
+| `testrail-regression-preventer` | Guard changes against breaking existing TestRail cases |
+| `testrail-change-evaluator`     | Predict pass/fail of TestRail cases for recent changes |
+| `testrail-import`               | Import test cases from a source file into TestRail     |
 
 ### Testmo
 
-| Skill                      | What it does                                         |
-|----------------------------|------------------------------------------------------|
-| `testmo-spec-implementer`  | Implement a feature from Testmo test cases           |
-| `testmo-change-evaluator`  | Predict pass/fail of Testmo cases for recent changes |
-| `testmo-import`            | Import test cases from a source file into Testmo     |
+| Skill                         | What it does                                         |
+|-------------------------------|------------------------------------------------------|
+| `testmo-spec-implementer`     | Implement a feature from Testmo test cases           |
+| `testmo-regression-preventer` | Guard changes against breaking existing Testmo cases |
+| `testmo-change-evaluator`     | Predict pass/fail of Testmo cases for recent changes |
+| `testmo-import`               | Import test cases from a source file into Testmo     |
 
 ### Xray
 
