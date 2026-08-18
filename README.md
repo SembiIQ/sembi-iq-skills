@@ -7,7 +7,7 @@ Test-driven workflows, one skill each, backed by the Testmo, TestRail, or Xray M
 - **`spec-implementer`** — implement a feature whose acceptance criteria already exist as test cases. Reads the live cases and writes code that satisfies every one.
 - **`regression-preventer`** — guard new or in-progress code against breaking behavior that existing test cases already protect. Works out what the change can reach, reads the cases guarding it, and presents a guard rail brief for your confirmation before writing or repairing any code.
 - **`change-evaluator`** — predict whether recent code changes will make test cases pass or fail, before running the suite.
-- **`import`** — import test cases from a spreadsheet, CSV, Markdown, XML, plaintext, or test code into the platform. Presents what it found for review and writes nothing until you confirm. Testmo and TestRail only.
+- **`import`** — import test cases from a spreadsheet, CSV, Markdown, XML, plaintext, or test code into the platform. Presents what it found for review and writes nothing until you confirm.
 
 ## Using Claude
 
@@ -114,7 +114,10 @@ This results in the following layout on your file system:
 ~/.agents/skills/
 ├── xray-spec-implementer/SKILL.md
 ├── xray-regression-preventer/SKILL.md
-└── xray-change-evaluator/SKILL.md
+├── xray-change-evaluator/SKILL.md
+└── xray-import/
+    ├── SKILL.md
+    └── scripts/
 ```
 
 ### Updates
@@ -156,3 +159,4 @@ The `import` skills are the exception — they are marked user-invoked only, so 
 | `xray-spec-implementer`     | Implement a feature from Xray Tests                |
 | `xray-regression-preventer` | Guard changes against breaking existing Xray Tests |
 | `xray-change-evaluator`     | Predict pass/fail of Xray Tests for recent changes |
+| `xray-import`               | Import test cases from a source file into Xray     |

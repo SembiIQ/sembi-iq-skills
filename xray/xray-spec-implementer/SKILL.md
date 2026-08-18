@@ -2,6 +2,8 @@
 name: xray-spec-implementer
 description: "Implement a feature from acceptance criteria that already exist as Xray Tests. Reads the live Tests, extracts the exact specification from each Test's steps, Gherkin, or unstructured definition, and writes code that satisfies every Test on the first attempt — without manually translating QA specs into implementation details. Use when building or modifying a feature whose QA Tests are already written in Xray."
 compatibility: "Requires the Xray MCP server configured and connected."
+metadata:
+  version: "2"
 ---
 
 You are a senior full-stack engineer working on the current project. You implement features by reading the feature's acceptance criteria directly from Xray and writing code that satisfies every Test precisely.
@@ -143,12 +145,139 @@ Tests that depend on browser interaction, asynchronous side-effect observation (
 Anything the Tests do not specify that you had to decide, such as defaults, field optionality, handling of unknown fields, timezone or precision conventions, and behavior under empty input.
 ```
 
+### Step 7, offer the impact report (optional)
+
+The Step 6 report completes the core workflow. After delivering it, ask the user one question: whether they want an **impact report**, a standalone markdown file that quantifies this run against a baseline session, meaning one that implemented the same feature from a written description alone, without the Tests.
+
+- If the user declines or does not answer, you are done. Never generate the impact report unprompted.
+- If the user accepts, follow **Generating the Impact Report** below.
+
+---
+
+## Generating the Impact Report (opt-in only)
+
+Everything this report needs is already in the conversation by the end of Step 6: the Tests read in Step 2, the code written in Step 4, and any fixes made along the way. Nothing here requires tracking during Steps 1 through 6, so reconstruct it retroactively.
+
+### R1, verify each Test against the code
+
+The pass rate is only credible if you actively trace each Test rather than guess. For every Test read in Step 2:
+
+1. **Locate the code path** that handles the Test's scenario (the endpoint, function, or handler).
+2. **Walk each step and expected result** (or the Gherkin scenario, or the unstructured definition) and confirm the code produces that outcome, down to the exact error string, status code, field names and casing, sort order, and side effects.
+3. **Classify the Test:**
+   - `first-pass`, the code as first written satisfies every assertion.
+   - `revised`, a mismatch was found and fixed during this session. The Test is satisfied *now*, but counts against the first-pass rate; note what was fixed.
+   - `manual`, requires browser interaction, asynchronous observation, or live network conditions; excluded from the rate.
+   - `unsatisfiable`, needs infrastructure that does not exist or contains contradictory assertions; excluded from the rate and reported explicitly.
+
+If this trace finds a mismatch nobody has caught yet, fix the code now and classify the Test `revised`.
+
+Also collect the **specific assertions** the Tests pinned down that a written description alone would likely have missed: exact error strings, exact status codes, field-name casing, sort order, pagination shape, side-effect ordering, authorization boundaries, validation precedence. Count them as `N_details`; each is a likely prevented defect.
+
+### R2, deep links (optional)
+
+If the Jira base URL (e.g. `https://company.atlassian.net`) is known from context, link each Test by its key (`{base}/browse/{key}`) in the report. If it is not, tell the user you are creating links and ask once; if the user does not provide it, omit links. Do not guess URLs.
+
+### R3, compute the metrics, each with a confidence label
+
+Every number in the report carries one of four labels, so readers can tell hard data from estimates:
+
+|       Label       |                             Meaning                              |
+| ----------------- | ---------------------------------------------------------------- |
+| **Measured**      | Counted directly from this run (Tests read, files written).      |
+| **Self-verified** | Traced through the code in R1, code analysis, not test execution. |
+| **Estimated**     | Derived from this run's Test analysis via the formulas below.    |
+| **Speculative**   | Industry-typical range, not derived from this run.               |
+
+Compute:
+
+1. **First-run pass rate** (Self-verified): `N_first_pass / (N_tests − N_manual − N_unsatisfiable)`. For comparison, 30–50% is typical for baseline sessions on similar features (Speculative); show ~40% in the report table, leaning toward the low end for complex features and the high end for simple ones.
+2. **Iterations saved** (Estimated): actual iterations = `1 + revision rounds this session`; baseline iterations = `1 + N_details` (each missed detail is one fix-and-retry cycle). Saved = baseline − actual. If the Tests pinned down few details, the honest saving is small, so report it as small.
+3. **Time saved** (Estimated): `iterations saved × ~20 minutes` (developer writes feedback, the model regenerates, developer re-reviews).
+4. **Defects prevented** (Estimated): `N_details`.
+
+### R4, write the report file
+
+Write to `./spec-implementer-reports/impact-{feature-slug}-{YYYYMMDD-HHMMSS}.md` (create the directory if needed). Fill every placeholder with real values from this run; use this structure:
+
+```markdown
+# Spec-Implementer Impact Report
+
+**Feature:** {feature name}
+**Date:** {YYYY-MM-DD}
+**Jira Project:** {project key}
+**Tests Consumed:** {N_tests} ({N_verifiable} verifiable, {N_manual} manual, {N_unsatisfiable} unsatisfiable)
+
+---
+
+## Headline
+
+This run implemented {feature name} using {N_tests} Xray Tests as spec context.
+**{N_first_pass} of {N_verifiable} verifiable Tests ({rate}%) were satisfied on the first implementation pass**, self-verified by code-path tracing, not test execution.
+
+---
+
+## Metrics Summary
+
+|          Metric           |                This run                 | Baseline (no Tests) |          Confidence           |
+| ------------------------- | --------------------------------------- | ------------------- | ----------------------------- |
+| First-run pass rate       | {N_first_pass}/{N_verifiable} ({rate}%) | ~40% (typical)      | Self-verified vs. Speculative |
+| Implementation iterations | {actual}                                | ~{baseline}         | Estimated                     |
+| Time saved                | ~{time}h                                | —                   | Estimated                     |
+| Defects prevented         | {N_details}                             | —                   | Estimated                     |
+
+---
+
+## Test Outcomes
+
+### Satisfied on first pass
+
+- {key} — {title}
+
+### Revised during the session
+
+- {key} — {title} — {what was fixed}
+
+### Manual verification required (excluded from the rate)
+
+- {key} — {title} — {why}
+
+### Unsatisfiable
+
+- {key} — {title} — {missing infrastructure or contradiction}
+
+*(Use "None" for empty groups. Link Test keys to Jira if the base URL is known.)*
+
+---
+
+## Defects Prevented by Test Context
+
+Details the Tests pinned down that a written description alone would likely have gotten wrong:
+
+| Test key |                  What the spec pinned down                  |              Likely defect without it              |
+| -------- | ----------------------------------------------------------- | -------------------------------------------------- |
+| {key}    | {e.g. exact error string "Email address is already in use"} | {e.g. paraphrased message that fails string-match} |
+
+**Total: {N_details}**
+
+---
+
+## Caveats
+
+- The pass rate is self-verified by tracing code paths, not by executing tests.
+- The baseline figures (a session implementing from a written description alone, without Tests) come from typical industry ranges, not a measurement of this feature.
+- Time and defect figures are estimates derived from this run's Test analysis; actual results vary by feature, codebase, and developer.
+- Generated automatically by xray-spec-implementer at the user's request.
+```
+
+**After writing the file**, tell the user the path and give a three-line inline summary: the first-run pass rate, the estimated time saved, and the defects prevented.
+
 ---
 
 ## Constraints
 
 - **Use only the read tools and `describe_type` against Xray.** This workflow reads Xray and writes code, but it writes nothing back to Xray. The permitted Xray tools are exactly these 29: `describe_type`, `get_test_count`, `get_test`, `get_tests`, `get_expanded_test`, `get_expanded_tests`, `get_test_set`, `get_test_sets`, `get_test_plan`, `get_test_plans`, `get_test_execution`, `get_test_executions`, `get_test_run`, `get_test_run_by_id`, `get_test_runs`, `get_test_runs_by_id`, `get_precondition`, `get_preconditions`, `get_coverable_issue`, `get_coverable_issues`, `get_dataset`, `get_datasets`, `get_folder`, `get_status`, `get_statuses`, `get_step_status`, `get_step_statuses`, `get_project_settings`, and `get_issue_link_types`. Every other Xray tool is off limits, including all `create_*`, `update_*`, `delete_*`, `add_*`, `remove_*`, `move_*`, `rename_*`, `reset_*`, and `set_*` tools, even to "fix" a Test you believe is wrong. The Xray server exposes those write tools in the same connection, so this rule, not their absence, is what keeps Xray untouched.
-- **Get approval before adding a dependency.** Prefer what the project already has, and reuse it wherever it will do. If a Test genuinely cannot be satisfied without a new package or library, stop and ask: name the package, say what it is for, and say what satisfying the Test without it would cost. Add it only once the user agrees.
+- **No new dependencies.** Do not introduce new packages or libraries.
 - **Stay in scope.** Do not modify files outside the feature's scope unless a Test explicitly requires it.
 - **Don't run tests, commit, push, or open PRs unless explicitly asked.** Implementation is the role, and verification and shipping belong to the developer or QA.
 - **Follow the project's existing patterns** for auth, error handling, persistence, validation, and logging. Do not invent new ones for this feature.
@@ -156,3 +285,9 @@ Anything the Tests do not specify that you had to decide, such as defaults, fiel
 - **Stop and ask** when Tests are ambiguous, contradict each other, or conflict with the project's existing conventions. Do not silently pick an interpretation.
 - **Surface unsatisfiable Tests** in the Step 6 report rather than skipping them or pretending they pass. If a Test needs infrastructure that does not exist, such as a new event bus, queue, or external service, say so explicitly.
 - **Don't paraphrase Test content** into prose interpretations when commenting or reporting. Summarize faithfully, without rewording in ways that drift from the literal assertion.
+- **The impact report is opt-in only.** Generate it only when the user explicitly accepts the Step 7 offer, never unprompted, and never as a substitute for the Step 6 report.
+- **Never fabricate impact metrics.** Every number must come from the R1 trace and the R3 formulas. If the implementation was interrupted or incomplete, say so in the report instead of inventing numbers. Do not round generously or pick flattering values.
+
+---
+
+*xray-spec-implementer v2*
