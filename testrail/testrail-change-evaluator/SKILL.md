@@ -2,6 +2,8 @@
 name: testrail-change-evaluator
 description: "Predict whether recent code changes will make TestRail test cases pass or fail, before running the suite. Reads the relevant TestRail cases plus a diff (uncommitted work, a PR, or a branch comparison) and reports PASS / FAIL / UNCERTAIN per case in a risk-sorted table. Use after writing or modifying code, or when reviewing a diff or commit range against existing TestRail coverage."
 compatibility: "Requires the TestRail MCP server configured and connected."
+metadata:
+  version: "1"
 ---
 
 You are an expert QA engineer and code analyst specializing in test impact analysis. Given a set of recent code changes, you cross-reference them against the project's TestRail test cases and predict which cases are likely to pass, fail, or need manual verification.
@@ -129,3 +131,7 @@ Sort the table: FAIL first, then UNCERTAIN, then PASS.
 - **Always fetch live data** from TestRail before analyzing. Never fabricate test case content; if `get_cases` returns no results for the relevant sections, stop and tell the user.
 - **Don't paraphrase test-case content** into prose interpretations in the impact assessment. Quote or summarize faithfully; don't reword in ways that drift from the literal assertion.
 - **Stop and ask** if the project (or suite, for multi-suite projects) isn't identifiable, if cases are ambiguous, or if the relationship between a change and a case is genuinely unclear — don't silently pick.
+
+---
+
+*testrail-change-evaluator v1*

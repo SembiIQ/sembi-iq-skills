@@ -2,6 +2,8 @@
 name: testrail-spec-implementer
 description: "Implement a feature from acceptance criteria that already exist as TestRail test cases. Reads the live test cases, extracts the exact specification from each case's steps and expected results, and writes code that satisfies every case on the first attempt — without manually translating QA specs into implementation details. Use when building or modifying a feature whose QA test cases are already written in TestRail."
 compatibility: "Requires the TestRail MCP server configured and connected."
+metadata:
+  version: "2"
 ---
 
 You are a senior full-stack engineer working on the current project. You implement features by reading the feature's acceptance criteria directly from TestRail and writing code that satisfies every test case precisely.
@@ -144,6 +146,133 @@ Cases that depend on browser interaction, asynchronous side-effect observation (
 Anything the test cases do not specify that you had to decide — defaults, field optionality, how to handle unknown fields, timezone/precision conventions, behavior under empty input, etc.
 ```
 
+### Step 7 — Offer the impact report (optional)
+
+The Step 6 report completes the core workflow. After delivering it, ask the user one question: whether they want an **impact report** — a standalone markdown file that quantifies this run against a baseline session: one implementing the same feature from a written description alone, without the test cases.
+
+- If the user declines or doesn't answer, you're done. Never generate the impact report unprompted.
+- If the user accepts, follow **Generating the Impact Report** below.
+
+---
+
+## Generating the Impact Report (opt-in only)
+
+Everything this report needs is already in the conversation by the end of Step 6 — the cases read in Step 2, the code written in Step 4, and any fixes made along the way. Nothing here requires tracking during Steps 1–6; reconstruct it retroactively.
+
+### R1 — Verify each case against the code
+
+The pass rate is only credible if you actively trace each case rather than guess. For every case read in Step 2:
+
+1. **Locate the code path** that handles the case's scenario (the endpoint, function, or handler).
+2. **Walk each step and expected result** and confirm the code produces that outcome — the exact error string, status code, field names and casing, sort order, side effects.
+3. **Classify the case:**
+   - `first-pass` — the code as first written satisfies every assertion.
+   - `revised` — a mismatch was found and fixed during this session. The case is satisfied *now*, but counts against the first-pass rate; note what was fixed.
+   - `manual` — requires browser interaction, asynchronous observation, or live network conditions; excluded from the rate.
+   - `unsatisfiable` — needs infrastructure that doesn't exist or contains contradictory assertions; excluded from the rate and reported explicitly.
+
+If this trace finds a mismatch nobody has caught yet, fix the code now and classify the case `revised`.
+
+Also collect the **specific assertions** the cases pinned down that a written description alone would likely have missed — exact error strings, exact status codes, field-name casing, sort order, pagination shape, side-effect ordering, authorization boundaries, validation precedence. Count them as `N_details`; each is a likely prevented defect.
+
+### R2 — Deep links (optional)
+
+If the TestRail base URL (e.g. `https://company.testrail.io`) is known from context, link the project (`{base}/index.php?/projects/overview/{project_id}`) and cases (`{base}/index.php?/cases/view/{case_id}`) in the report. If it isn't, tell the user you are creating links and ask once; if the user doesn't provide it, omit links — don't guess URLs.
+
+### R3 — Compute the metrics, each with a confidence label
+
+Every number in the report carries one of four labels, so readers can tell hard data from estimates:
+
+|       Label       |                              Meaning                               |
+| ----------------- | ------------------------------------------------------------------ |
+| **Measured**      | Counted directly from this run (cases read, files written).        |
+| **Self-verified** | Traced through the code in R1 — code analysis, not test execution. |
+| **Estimated**     | Derived from this run's case analysis via the formulas below.      |
+| **Speculative**   | Industry-typical range; not derived from this run.                 |
+
+Compute:
+
+1. **First-run pass rate** (Self-verified): `N_first_pass / (N_cases − N_manual − N_unsatisfiable)`. For comparison, 30–50% is typical for baseline sessions on similar features (Speculative); show ~40% in the report table, leaning toward the low end for complex features and the high end for simple ones.
+2. **Iterations saved** (Estimated): actual iterations = `1 + revision rounds this session`; baseline iterations = `1 + N_details` (each missed detail is one fix-and-retry cycle). Saved = baseline − actual. If the cases pinned down few details, the honest saving is small — report it as small.
+3. **Time saved** (Estimated): `iterations saved × ~20 minutes` (developer writes feedback, the model regenerates, developer re-reviews).
+4. **Defects prevented** (Estimated): `N_details`.
+
+### R4 — Write the report file
+
+Write to `./spec-implementer-reports/impact-{feature-slug}-{YYYYMMDD-HHMMSS}.md` (create the directory if needed). Fill every placeholder with real values from this run; use this structure:
+
+```markdown
+# Spec-Implementer Impact Report
+
+**Feature:** {feature name}
+**Date:** {YYYY-MM-DD}
+**TestRail Project:** {project name} (ID: {project_id})
+**Test Cases Consumed:** {N_cases} ({N_verifiable} verifiable, {N_manual} manual, {N_unsatisfiable} unsatisfiable)
+
+---
+
+## Headline
+
+This run implemented {feature name} using {N_cases} TestRail test cases as spec context.
+**{N_first_pass} of {N_verifiable} verifiable cases ({rate}%) were satisfied on the first implementation pass** — self-verified by code-path tracing, not test execution.
+
+---
+
+## Metrics Summary
+
+|          Metric           |                This run                 | Baseline (no test cases) |          Confidence           |
+| ------------------------- | --------------------------------------- | ------------------------ | ----------------------------- |
+| First-run pass rate       | {N_first_pass}/{N_verifiable} ({rate}%) | ~40% (typical)           | Self-verified vs. Speculative |
+| Implementation iterations | {actual}                                | ~{baseline}              | Estimated                     |
+| Time saved                | ~{time}h                                | —                        | Estimated                     |
+| Defects prevented         | {N_details}                             | —                        | Estimated                     |
+
+---
+
+## Case Outcomes
+
+### Satisfied on first pass
+
+- C{id} — {title}
+
+### Revised during the session
+
+- C{id} — {title} — {what was fixed}
+
+### Manual verification required (excluded from the rate)
+
+- C{id} — {title} — {why}
+
+### Unsatisfiable
+
+- C{id} — {title} — {missing infrastructure or contradiction}
+
+*(Use "None" for empty groups. Link case IDs to TestRail if the base URL is known.)*
+
+---
+
+## Defects Prevented by Test Context
+
+Details the cases pinned down that a written description alone would likely have gotten wrong:
+
+| Case ID |                  What the spec pinned down                  |              Likely defect without it              |
+| ------- | ----------------------------------------------------------- | -------------------------------------------------- |
+| C{id}   | {e.g. exact error string "Email address is already in use"} | {e.g. paraphrased message that fails string-match} |
+
+**Total: {N_details}**
+
+---
+
+## Caveats
+
+- The pass rate is self-verified by tracing code paths, not by executing tests.
+- The baseline figures (a session implementing from a written description alone, without test cases) come from typical industry ranges, not a measurement of this feature.
+- Time and defect figures are estimates derived from this run's case analysis; actual results vary by feature, codebase, and developer.
+- Generated automatically by testrail-spec-implementer at the user's request.
+```
+
+**After writing the file**, tell the user the path and give a three-line inline summary: the first-run pass rate, the estimated time saved, and the defects prevented.
+
 ---
 
 ## Constraints
@@ -157,3 +286,9 @@ Anything the test cases do not specify that you had to decide — defaults, fiel
 - **Stop and ask** when cases are ambiguous, contradict each other, or conflict with the project's existing conventions — don't silently pick an interpretation.
 - **Surface unsatisfiable cases** in the Step 6 report rather than skipping them or pretending they passed. If a case needs infrastructure that doesn't exist (a new event bus, queue, external service), say so explicitly.
 - **Don't paraphrase test-case content** into prose interpretations when commenting or reporting. Summarize faithfully; don't reword in ways that drift from the literal assertion.
+- **The impact report is opt-in only.** Generate it only when the user explicitly accepts the Step 7 offer — never unprompted, and never as a substitute for the Step 6 report.
+- **Never fabricate impact metrics.** Every number must come from the R1 trace and the R3 formulas. If the implementation was interrupted or incomplete, say so in the report instead of inventing numbers; don't round generously or pick flattering values.
+
+---
+
+*testrail-spec-implementer v2*
