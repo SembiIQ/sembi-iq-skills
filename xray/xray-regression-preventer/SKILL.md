@@ -73,7 +73,7 @@ Page the results with `limit` up to 100 and `start`, reading `total` to know whe
 
 - **Manual Test.** `steps { id action data result }`, the ordered `Step` list.
 - **Cucumber Test.** `gherkin` for the scenario text, plus `scenarioType` (`scenario` or `scenario_outline`).
-- **Generic Test.** `unstructured`, the free-text automated definition.
+- **Generic Test.** `unstructured`, the automated definition. When it is a script path, such as `TCDDemo.spec.ts.PaymentTest_1_MC`, read that file in the repo for the assertions themselves, and record the contract as unreadable when the file is absent.
 - **Any Test.** `jira(fields: ["key", "summary", "labels", "priority"])` for the Jira-side title, labels, and priority, `preconditions(limit: N) { ... }` for the reusable setup conditions, and `dataset` for data-driven iterations.
 
 One selection can read the type discriminator and every type's spec field at once, for example `issueId testType { name kind } jira(fields: ["key", "summary", "labels"]) steps { id action data result } gherkin unstructured`. Branch on `testType.kind` (`Steps`, `Gherkin`, or `Unstructured`) after the call, and ignore the spec fields that do not apply to that kind.
@@ -86,13 +86,13 @@ Three Xray limits constrain each call. A connection's `limit` must be from 1 to 
 
 #### Grade each contract by its execution history
 
-A Test's text says what should be true. Its Test Runs say whether it is true *today*, and that difference decides how hard a constraint it is. Read the recent Runs for the Tests you gathered with `get_test_runs` or `get_test_runs_by_id`, and the Executions holding them with `get_test_execution` or `get_test_executions`. Interpret status names through `get_statuses` and `get_step_statuses` rather than assuming a fixed vocabulary, since Xray statuses are configurable per site.
+A Test's text says what should be true. Its Test Runs say whether it is true *today*. Read them with `get_test_runs` or `get_test_runs_by_id`, selecting `status { name }` plus `startedOn`, `finishedOn` and `lastModified`. The example selections in the tool descriptions omit the dates, and without them you cannot tell a live contract from an abandoned one. Read the status vocabulary from `get_statuses`, since Xray statuses are configurable per site.
 
-- **Passing consistently and recently.** A live contract. Treat it as a hard constraint on the implementation.
-- **Currently failing, or visibly flaky.** A weak constraint. The behavior may already be broken, so preserving it may not be possible or even desirable. Record it in the brief with its history and do not let it drive an implementation decision on its own.
-- **Never executed, or last run long ago.** Unproven. Treat it as a statement of intent rather than an observed contract, and flag it in the brief so the user can say whether it still reflects reality.
+- **Passing, recently.** A live contract. Treat it as a hard constraint.
+- **Currently failing, or visibly flaky.** A weak constraint. The behavior may already be broken, so record it in the brief with its history and do not let it drive an implementation decision on its own.
+- **Never executed, or last run long ago.** Unproven. Treat it as a statement of intent, and flag it in the brief so the user can say whether it still reflects reality.
 
-Grade honestly. Overstating a stale Test as a live contract distorts the implementation just as much as missing a real one.
+Grade honestly. Overstating a stale Test as a live contract distorts the implementation as much as missing a real one.
 
 ### The guard rail brief, and the gate
 
@@ -116,6 +116,8 @@ Keep it scannable. The user should be able to correct it in one reply.
 | -------- | -------------------------------------------------- | -------------- | ------------------------ |
 | XSP-274  | List returns items ordered by `position` ascending | live, passing  | touches the same query   |
 | XSP-289  | Position patches emit `item:moved`                 | never executed | shares the event emitter |
+
+Below the table, name any Test Set or Test Plan the contracts belong to, especially an explicit regression grouping.
 
 ### Contracts I could not grade
 Tests whose relevance or execution history is genuinely unclear, and why.
@@ -251,7 +253,7 @@ When you hit one:
 
 ## Constraints
 
-- **Use only the read tools and `describe_type` against Xray.** This workflow reads Xray and writes code, but it writes nothing back to Xray. The permitted Xray tools are exactly these 29: `describe_type`, `get_test_count`, `get_test`, `get_tests`, `get_expanded_test`, `get_expanded_tests`, `get_test_set`, `get_test_sets`, `get_test_plan`, `get_test_plans`, `get_test_execution`, `get_test_executions`, `get_test_run`, `get_test_run_by_id`, `get_test_runs`, `get_test_runs_by_id`, `get_precondition`, `get_preconditions`, `get_coverable_issue`, `get_coverable_issues`, `get_dataset`, `get_datasets`, `get_folder`, `get_status`, `get_statuses`, `get_step_status`, `get_step_statuses`, `get_project_settings`, and `get_issue_link_types`. Every other Xray tool is off limits, including all `create_*`, `update_*`, `delete_*`, `add_*`, `remove_*`, `move_*`, `rename_*`, `reset_*`, and `set_*` tools, even to "fix" a Test you believe is outdated or wrong. The Xray server exposes those write tools in the same connection, so this rule, not their absence, is what keeps Xray untouched.
+- **Use only the read tools and `describe_type` against Xray.** This workflow reads Xray and writes code, but it writes nothing back to Xray. Every `get_*` tool is permitted, along with `describe_type`. Every other Xray tool is off limits, including all `create_*`, `update_*`, `delete_*`, `add_*`, `remove_*`, `move_*`, `rename_*`, `reset_*`, and `set_*` tools, even to "fix" a Test you believe is outdated or wrong.
 - **Do not write code before the guard rail brief is confirmed.** The gate is the workflow.
 - **Read wide, write narrow.** Finding what depends on the change requires reading well outside it, and that is expected. Editing does not. Confine changes to the files the change and its confirmed guard rails require.
 - **Get approval before adding a dependency.** Prefer what the project already has, and reuse it wherever it will do. If preserving a contract genuinely requires a new package or library, stop and ask: name the package, say what it is for, and say what the alternative would cost. Add it only once the user agrees. Adding one can also force the resolver to upgrade a shared transitive dependency that existing code relies on, which is a regression vector in its own right.
@@ -259,6 +261,7 @@ When you hit one:
 - **Always fetch live data** from Xray before analyzing or implementing. Never fabricate Test content. If a search returns no Tests for the impact surface, say so plainly in the brief — a surface with no coverage is a finding, not a green light, and the user may want to stop and write Tests first.
 - **Don't paraphrase Test content** into prose interpretations in the brief, the comments, or the report. Quote or summarize faithfully, without rewording in ways that drift from the literal assertion. A contract restated loosely is a contract you will break.
 - **Stop and ask** when the impact surface is unclear, when Tests contradict each other, when a Test's relevance is genuinely ambiguous, or when the change cannot keep a contract. Do not silently pick an interpretation.
+- **Column-align every table.** Pad each cell with trailing spaces so the pipes line up, and pad the separator row to match.
 
 ---
 

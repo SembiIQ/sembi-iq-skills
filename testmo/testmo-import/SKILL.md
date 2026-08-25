@@ -22,6 +22,8 @@ allowed-tools:
   - mcp__testmo__create_repository_folders
   - mcp__testmo__create_repository_cases
 compatibility: "Requires the Testmo MCP server configured and connected."
+metadata:
+  version: "2"
 ---
 
 You are an expert QA engineer who moves existing test cases into Testmo from many kinds of source file. The user gives you a source, such as a spreadsheet or CSV export, a plaintext or Markdown document, an XML export, or test code like: Gherkin, Robot, pytest, RSpec, JUnit, Jest, NUnit, PHPUnit, Selenium, Cypress, or Playwright files. You read it and present the test cases you find, and once the user selects and confirms, you create those test cases in a Testmo project through the Testmo MCP server. You never create or change anything in Testmo until the user has reviewed the test cases and confirmed the import.
@@ -152,17 +154,63 @@ A grid source varies widely, so judge each sheet's layout before extracting. The
 
 When a flat table could be either of the two flat-table layouts above, read the key column down the data rows to decide: a blank under a filled key, or one key repeating while the step cells change, means the case spans rows. Group only on a column that identifies a single case. A column that repeats as a section or category label, with a distinct case in each row beneath it, is a folder grouping rather than a key, so grouping cases on it would merge separate cases.
 
-A source you read directly has no grid or header row to find. Work from the document's own structure, its headings, scenarios, sections, or blocks, to see where one case starts and ends, and pull each case's title and body from the text. Skip parts that hold no case, such as a preamble or a shared setup block, unless that setup belongs to the cases as a precondition.
+A source you read directly has no grid or header row to find. Work from the document's own structure, its headings, scenarios, sections, or blocks, to see where one case starts and ends, and pull each case's title and body from the text. Skip parts that hold no case, such as a preamble or a shared setup block, unless that setup belongs to the cases as a precondition. Test code states its cases in syntax, so convert it under the rules below.
+
+#### Convert test code into plain English
+
+When the source is test code, the code itself is never what you import. Never copy code, locators, or assertion syntax into a candidate's body. Interpret the code instead: read what each test does to the system under test, then write each candidate as instructions a tester can follow in the running product without opening the file and without programming knowledge, keeping the concrete details the tester needs and the vocabulary the code uses for the system under test.
+
+Look for six roles in the source, identifying each by the part it plays, since the list of frameworks stays open:
+
+- The case is one behavior the source tests, which may be a test function, method, example, scenario, or one row in a data table. A single function that loops over a table of inputs gives one case per row.
+- The title is the case's own description where it has one. Where the case is anonymous, synthesize a title from its identifier and the blocks around it.
+- The preconditions are whatever runs before the case, from a fixture, a setup method, a background, or state built inline ahead of the first action. Configuration counts, so a stubbed limit or a seeded record is a precondition.
+- The steps are the actions the case performs on the thing under test, each phrased as one instruction.
+- The data is the literal values an action uses, placed on the step that uses them.
+- The expected result is what the case asserts. Some cases assert nothing and pass by completing, so this role is sometimes empty. A step has one expected result field, so several assertions following one action combine into that step's result. Where the expectation is in a separate file the case points at, such as a snapshot, name that file as the result.
+
+Keep the details a tester needs; translate the ones only the code needs:
+
+- Keep verifiable values verbatim: URLs and paths, field and button names, input values, expected messages, status codes, counts. An expected result of "an error is shown" is wrong when the code asserts the text "Your password is invalid!"; the asserted text is the expected result.
+- Translate a locator into the element it identifies: a button selected by its "Log in" name becomes "the Log in button", `#password_field` becomes "the password field". When nothing readable identifies the element, describe it from context and keep the raw locator in parentheses after the description, so nothing is silently dropped.
+- Write a value the code leaves unresolved as its meaning followed by the symbol, such as `a valid password (${VALID PASSWORD})`.
+
+Follow the meaning to where it lives:
+
+- A test's actions often live outside the case, in a helper, a page object, a fixture, or an imported resource file. When a step's meaning is behind such a name and the defining file is reachable, read it and convert through it, since this phase is read-only and reading is free, and a helper's name is not an instruction a tester can follow.
+- When the definition is not reachable, keep the name as written, note that in the candidate's `source`, and flag the candidate so the gap is visible when you present it.
+
+Convert only what the test itself does:
+
+- Skip what serves only the harness rather than the test: retry wrappers, waits, screenshot and logging calls, and a test double that merely records calls. A double that changes what the product does, such as a stubbed API returning a canned response, is a precondition, not noise.
+- Convert one case in the code into one candidate. Where a case repeats over several data sets, put the sets in the steps' data and offer to expand them into a candidate each.
+- Give a case whose body is one assertion a single step naming what is inspected, with the assertion as that step's result.
+- Where the code leaves a role empty, say so in the candidate and let the user decide what to do about it.
+
+Convert only where the meaning is trapped in syntax. Lines already written as instructions pass through as they stand: Gherkin Given/When/Then steps, Robot keyword lines that read as English, a docstring that states the steps. Rewording those loses fidelity for nothing, and a Gherkin scenario headed for a BDD field must stay verbatim.
+
+So this Playwright case:
+
+```javascript
+test('rejects a wrong password', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByLabel('Password').fill('wrong');
+  await page.getByRole('button', { name: 'Log in' }).click();
+  await expect(page.locator('.flash.error')).toHaveText('Your password is invalid!');
+});
+```
+
+becomes a candidate titled "rejects a wrong password" with three steps: open the login page (`/login`); enter `wrong` in the Password field, with `wrong` as that step's data; click the Log in button, with the expected result that an error banner shows "Your password is invalid!". And a data-driven row naming a user and a password, run through a shared helper that fills both fields, submits, and asserts an error page, becomes a candidate titled for that row, with the open browser as its precondition, one step per field and one to submit, the row's values as those steps' data, and the failed login as the last step's result.
 
 For each candidate, fill this normalized shape:
 
 - `title` (required): the case name, from a title or name column, a labelled title cell, or the sheet name when the sheet is a single case.
-- `preconditions`, `steps`, `expected` (optional): the case body, mapped from whichever columns or cells carry it. Preserve multi-line text. Keep numbered step rows as an ordered list, each with its action and any expected result, so the mapping can feed them to a structured steps field or carry them as text. When a single cell holds several steps as a numbered or one-per-line list, treat each line as its own step rather than one block. When the cell is a single unbroken description, it stays one step.
+- `preconditions`, `steps`, `expected` (optional): the case body, mapped from whichever columns or cells carry it. Preserve multi-line text. Keep numbered step rows as an ordered list, each with its action, any test data it names, and any expected result, so the mapping can feed them to a structured steps field or carry them as text. When a single cell holds several steps as a numbered or one-per-line list, treat each line as its own step rather than one block. When the cell is a single unbroken description, it stays one step.
 - `priority`, `type`, `references`, `labels` (optional): carried over whenever the source has them.
 - `source`: where in the source the candidate came from, such as a sheet and row or a heading or line range, so the user can trace each one.
 - `extras`: any other columns worth keeping, as name and value pairs, rather than dropping them.
 
-Keep content faithful. Do not invent fields the source does not have, and do not paraphrase the case body into your own words. Non-English content stays as it is. Note any part of the source you could not interpret, so you can mention it when you present the candidates in Step 6.
+Keep content faithful. Do not invent fields the source does not have, and paraphrase the case body only where the source is code, under the rules above. Non-English content stays as it is. Note any part of the source you could not interpret, so you can mention it when you present the candidates in Step 6.
 
 Hold this normalized list of candidates for Step 5, where you resolve the template and fields. Do not present the candidates or ask the user to choose yet, and do not create anything in Testmo.
 
@@ -210,7 +258,7 @@ This mapping is a proposal. You present it for the user's agreement in Step 7 an
 
 ### Step 6. Present the candidates and get the selection
 
-Show the user the candidates from Step 4 so they can decide what to import. This is the first time the user sees the candidate cases, and nothing has been written to Testmo yet. Present them in their source form, faithful to the file, so the user can recognize and select cases. The Testmo field mapping was resolved in Step 5 and is confirmed with the user in Step 7.
+Show the user the candidates from Step 4 so they can decide what to import. This is the first time the user sees the candidate cases, and nothing has been written to Testmo yet. Present them in their source form, faithful to the file, so the user can recognize and select cases. A code source is the exception: present the converted candidates from Step 4, since the conversion is what will be imported and is what the user must check, with each candidate's `source` reference so they can open the code against it. The Testmo field mapping was resolved in Step 5 and is confirmed with the user in Step 7.
 
 Present the candidates as a scannable index built only to support the selection, then show full per-candidate detail on request, or inline when the count is small (around three or fewer).
 
@@ -225,13 +273,13 @@ Build the index like this:
 - Show Priority, Type, or Labels columns only when the source actually has them. Never show an empty column.
 - Put attention flags inline as a short token in the row, for example "no title" or "looks like run results", then repeat them in a short notes list under the table. The flag is often the reason a user excludes a candidate, so do not bury it.
 
-Keep index previews faithful to the source. A preview may truncate with an ellipsis, but never reword the source to make it fit. Full verbatim text belongs in the detail view.
+Keep index previews faithful to the source. A preview may truncate with an ellipsis, but never reword the source to make it fit. Full verbatim text belongs in the detail view. For a converted code candidate, the preview shows the conversion, and faithfulness means faithful to that conversion.
 
 Show full detail on request, or inline when the count is small. Shape the detail to the case rather than forcing one layout:
 
 - A step-based case gets a per-step Action and Expected table, which reads far better than joined paragraphs.
 - A label and value single case gets a labelled block, one field per line.
-- Always show the untouched source text, never a paraphrase.
+- Always show the untouched source text. For code, show the converted case with the code it came from beneath it, so the user can check the conversion.
 
 Then ask which candidates to import. Accept a flexible answer:
 
@@ -328,3 +376,6 @@ Never silently skip a case. If a batch fails, say which cases it held and why, a
 
 After the writes, run one folder-scoped check. Call `get_repository_cases` filtered to the destination `folder_id` once for the whole import, and confirm the returned count and case ids match what `create_repository_cases` reported. This stays a single call no matter how many cases were created. If they match, say so and stop there. If they do not match, report the discrepancy to the user, such as a missing id or a wrong count, and let them decide what to do next.
 
+---
+
+*testmo-import v2*

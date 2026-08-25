@@ -115,6 +115,7 @@ Sort the table: FAIL first, then UNCERTAIN, then PASS.
 - **Always fetch live data** from Testmo before analyzing. Never fabricate test case content; if `get_repository_cases` returns no results for the relevant folders, stop and tell the user.
 - **Don't paraphrase test-case content** into prose interpretations in the impact assessment. Quote or summarize faithfully; don't reword in ways that drift from the literal assertion.
 - **Stop and ask** if the project isn't identifiable, if cases are ambiguous, or if the relationship between a change and a case is genuinely unclear — don't silently pick.
+- **Column-align every table.** Pad each cell with trailing spaces so the pipes line up, and pad the separator row to match.
 
 ---
 

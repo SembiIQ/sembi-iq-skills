@@ -127,6 +127,7 @@ Put the Jira key in the Test key column. Fill Folder path with the Test's Test R
 - **Always fetch live data** from Xray before analyzing. Never fabricate Test content. If a search returns no Tests for the scope, stop and tell the user.
 - **Don't paraphrase Test content** into prose interpretations in the impact assessment. Quote or summarize faithfully, without rewording in ways that drift from the literal assertion.
 - **Stop and ask** if the project is not identifiable, if the relevant Tests are ambiguous, or if the relationship between a change and a Test is genuinely unclear. Do not silently pick.
+- **Column-align every table.** Pad each cell with trailing spaces so the pipes line up, and pad the separator row to match.
 
 ---
 

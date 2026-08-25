@@ -126,10 +126,10 @@ Keep it scannable. The user should be able to correct it in one reply.
 
 ### Protected contracts (N cases)
 
-| Case  | Contract asserted | Strength | Risk from this change |
-|-------|-------------------|----------|-----------------------|
-| C274  | List returns items ordered by `position` ascending | live, passing | touches the same query |
-| C289  | Position patches emit `item:moved` | never run | shares the event emitter |
+| Case | Contract asserted                                  | Strength      | Risk from this change    |
+| ---- | -------------------------------------------------- | ------------- | ------------------------ |
+| C274 | List returns items ordered by `position` ascending | live, passing | touches the same query   |
+| C289 | Position patches emit `item:moved`                 | never run     | shares the event emitter |
 
 ### Contracts I could not grade
 Cases whose relevance or result history is genuinely unclear, and why.
@@ -214,10 +214,10 @@ After writing all files, produce a concise report the developer and reviewer can
 
 ### Contracts preserved (N)
 
-| Case  | Contract | How the change preserves it | Confidence |
-|-------|----------|------------------------------|------------|
-| C274  | List ordered by `position` asc | sort kept server-side in the extracted query | high |
-| C291  | DELETE returns 200 + `{ success: true }` | new bulk path reuses the existing responder | high |
+| Case | Contract                                 | How the change preserves it                  | Confidence |
+| ---- | ---------------------------------------- | -------------------------------------------- | ---------- |
+| C274 | List ordered by `position` asc           | sort kept server-side in the extracted query | high       |
+| C291 | DELETE returns 200 + `{ success: true }` | new bulk path reuses the existing responder  | high       |
 
 ### Contracts at risk
 Contracts the change plausibly affects but that can't be confirmed from the code path alone — asynchronous side effects, browser behavior, timing. Name the case and what to watch.
@@ -273,6 +273,7 @@ When you hit one:
 - **Always fetch live data** from TestRail before analyzing or implementing. Never fabricate test case content. If a search returns no cases for the impact surface, say so plainly in the brief — a surface with no coverage is a finding, not a green light, and the user may want to stop and write cases first.
 - **Don't paraphrase test-case content** into prose interpretations in the brief, the comments, or the report. Quote or summarize faithfully; don't reword in ways that drift from the literal assertion. A contract restated loosely is a contract you will break.
 - **Stop and ask** when the impact surface is unclear, when cases contradict each other, when a case's relevance is genuinely ambiguous, or when the change can't keep a contract — don't silently pick an interpretation.
+- **Column-align every table.** Pad each cell with trailing spaces so the pipes line up, and pad the separator row to match.
 
 ---
 

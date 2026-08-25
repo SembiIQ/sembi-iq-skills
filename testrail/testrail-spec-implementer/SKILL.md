@@ -288,6 +288,7 @@ Details the cases pinned down that a written description alone would likely have
 - **Don't paraphrase test-case content** into prose interpretations when commenting or reporting. Summarize faithfully; don't reword in ways that drift from the literal assertion.
 - **The impact report is opt-in only.** Generate it only when the user explicitly accepts the Step 7 offer — never unprompted, and never as a substitute for the Step 6 report.
 - **Never fabricate impact metrics.** Every number must come from the R1 trace and the R3 formulas. If the implementation was interrupted or incomplete, say so in the report instead of inventing numbers; don't round generously or pick flattering values.
+- **Column-align every table.** Pad each cell with trailing spaces so the pipes line up, and pad the separator row to match.
 
 ---
 
