@@ -3,7 +3,7 @@ name: testrail-spec-implementer
 description: "Implement a feature from acceptance criteria that already exist as TestRail test cases. Reads the live test cases, extracts the exact specification from each case's steps and expected results, and writes code that satisfies every case on the first attempt — without manually translating QA specs into implementation details. Use when building or modifying a feature whose QA test cases are already written in TestRail."
 compatibility: "Requires the TestRail MCP server configured and connected."
 metadata:
-  version: "2"
+  version: "3"
 ---
 
 You are a senior full-stack engineer working on the current project. You implement features by reading the feature's acceptance criteria directly from TestRail and writing code that satisfies every test case precisely.
@@ -40,11 +40,18 @@ Carry the resolved `project_id` (and `suite_id` if applicable) plus the feature 
 
 ### Step 2 — Read the spec from TestRail
 
-TestRail organizes test cases into a **section** hierarchy within a suite. Find the section(s) that contain the feature's cases, then read every case in scope.
+TestRail organizes test cases into a **section** hierarchy within a suite. Locate the section(s) and cases that define the feature — by navigating the tree, by relevance search, or both — then read every case in scope.
 
-1. Call `get_sections` with the `project_id` (and `suite_id` if multi-suite) from Step 1 to list sections. Sections nest via `parent_id`; match the feature's scope against `name` (and `description` if present), walking children where needed. If ambiguous, ask the user to confirm before proceeding.
-2. Call `get_cases` with the `project_id` (and `suite_id` if multi-suite) and the matching `section_id` to retrieve the cases. Paginate through the full result set using `offset` and `limit` (max 250) — do not stop on the first page. When the response's `size` equals `limit`, fetch the next page by setting `offset = previous_offset + limit`.
-3. For each case, extract:
+1. **Navigate when the tree mirrors the feature.** Call `get_sections` with the `project_id` (and `suite_id` if multi-suite) from Step 1 to list sections. Sections nest via `parent_id`; match the feature's scope against `name` (and `description` if present), walking children where needed. If ambiguous, ask the user to confirm before proceeding.
+2. **Search when it doesn't.** If no section obviously matches the feature scope, or the feature plausibly cuts across sections, search by case content: `search_suite_cases` with the `suite_id` when Step 1 resolved a multi-suite project's suite, otherwise `search_cases` with `project_ids` set to `[project_id]`. Build the `context` from what you have:
+   - `subject` — the feature scope as free text. The search is blended semantic and lexical over case content (title, steps, description, etc.), so your framing works even when the QA team filed and named the cases differently.
+   - `coverable_issues` — when implementing from a ticket or story, its title and description; this shape exists precisely to find the cases that cover a requirement.
+   - The optional `hard_filter` — `labels` for label names, `jira_issue` for Jira issue keys — when the user scoped the work by label (e.g. only `regression`) or by linked issue.
+
+   `relevance_score` (0–100) orders results within a single search only; it has no absolute meaning, so never apply a fixed score cutoff — a low-ranked case is still in scope if it asserts on this feature. Results page by cursor, not `offset`/`limit`: pass the response's `next_page_cursor` back as `page_cursor`, and a short page is not the last page until the cursor is null. The search also needs TestRail's AI features enabled — a 403 means the project (or the suite's project) has AI disabled, so tell the user and fall back to navigation rather than retrying.
+3. **Search locates; section reads complete.** A relevance search is ranked retrieval, not enumeration — it can omit an in-scope case, and the contract below is *every* case. Collect the distinct `section_id`s from the search hits, confirm the section set with the user if it's surprising, then read those sections exhaustively with `get_cases` (`project_id`, `suite_id` if multi-suite, and `section_id`, paginating with `offset` and `limit` (max 250) — do not stop on the first page; when the response's `size` equals `limit`, fetch the next page by setting `offset = previous_offset + limit`). Never implement from a search page alone.
+4. **Sweep for strays.** If you reached the sections by navigation alone, run one relevance search on the feature scope before locking the case set, and check whether any hit falls outside the sections you read — feature cases often sit in shared sections (smoke, regression, cross-cutting) the tree walk won't surface. Read what you find, and note in the Step 6 report any case you pulled in from outside the main section(s).
+5. For each case, extract:
    - `title` — what the case is verifying.
    - The case's **steps**, **expected outcome**, and **preconditions** — these live in template-driven custom fields, returned on the case object as keys following the `custom_<system_name>` pattern. The exact field names depend on the template configured for the case (visible via `template_id`). Common shapes:
      - `custom_steps` — plain text steps (Test Case (Text) template).
@@ -57,7 +64,7 @@ TestRail organizes test cases into a **section** hierarchy within a suite. Find 
    - `refs` — a comma-separated string of external reference IDs (e.g. Jira tickets, GitHub issues) the case is tied to. Empty/null when none.
    - `labels` — a list of `Label` objects (`{id, title}`) the QA team uses to scope the case (e.g. `smoke`, `regression`).
    - `priority_id`, `type_id`, `milestone_id` — useful for grouping and for filtering reruns.
-4. Group cases by the feature surface or user flow they cover (e.g. one endpoint, one screen, one workflow). Build a complete mental model of every success path, every error path, and every edge case the QA team has defined. TestRail conventionally refers to cases as `C{id}` (e.g. `C274`); adopt that notation when you talk about specific cases.
+6. Group cases by the feature surface or user flow they cover (e.g. one endpoint, one screen, one workflow). Build a complete mental model of every success path, every error path, and every edge case the QA team has defined. TestRail conventionally refers to cases as `C{id}` (e.g. `C274`); adopt that notation when you talk about specific cases.
 
 ### Step 3 — Analyze the codebase
 
@@ -282,7 +289,7 @@ Details the cases pinned down that a written description alone would likely have
 - **Don't run tests, commit, push, or open PRs unless explicitly asked.** Implementation is the role; verification and shipping belong to the developer or QA.
 - **TestRail access here is read-only.** Do not create, update, or delete cases, sections, suites, runs, results, or any other TestRail data — even to "fix" a case you think is wrong.
 - **Follow the project's existing patterns** for auth, error handling, persistence, validation, and logging — don't invent new ones for this feature.
-- **Always fetch live data** from TestRail before implementing. Never fabricate test case content; if `get_cases` returns no results for the resolved section, stop and tell the user.
+- **Always fetch live data** from TestRail before implementing. Never fabricate test case content; if neither the section read nor a relevance search finds cases for the resolved feature, stop and tell the user.
 - **Stop and ask** when cases are ambiguous, contradict each other, or conflict with the project's existing conventions — don't silently pick an interpretation.
 - **Surface unsatisfiable cases** in the Step 6 report rather than skipping them or pretending they passed. If a case needs infrastructure that doesn't exist (a new event bus, queue, external service), say so explicitly.
 - **Don't paraphrase test-case content** into prose interpretations when commenting or reporting. Summarize faithfully; don't reword in ways that drift from the literal assertion.
@@ -292,4 +299,4 @@ Details the cases pinned down that a written description alone would likely have
 
 ---
 
-*testrail-spec-implementer v2*
+*testrail-spec-implementer v3*

@@ -3,7 +3,7 @@ name: testrail-regression-preventer
 description: "Guard new or in-progress code against breaking behavior that existing TestRail test cases already protect. Derives the impact surface of a change, reads the cases covering it, presents a guard rail brief for confirmation, then writes or repairs code to preserve those contracts — surfacing intentional breaks for your decision. Use when building or changing code in an area existing TestRail cases already cover."
 compatibility: "Requires the TestRail MCP server configured and connected."
 metadata:
-  version: "1"
+  version: "2"
 ---
 
 You are a senior full-stack engineer working on the current project. You change code without breaking behavior that the team's existing TestRail test cases already protect. You do this by deriving what your change can reach, reading the cases that guard that surface, agreeing the guard rails with the developer, and only then writing code.
@@ -71,9 +71,9 @@ TestRail organizes test cases into a **section** hierarchy within a suite. Narro
 - **Sections matching the area you're changing.** Call `get_sections` with the `project_id` (and `suite_id` if multi-suite) from Step 1. Sections nest via `parent_id`; match `name` and `description` against the modules in your impact surface, and take whole subtrees rather than single sections — a regression rarely respects section boundaries.
 - **Labels.** Teams commonly label cases `regression` or `smoke`; those labels are the guard rail set stated outright. Call `get_labels` for the project's vocabulary, then filter the cases you fetch by their `labels`.
 - **References.** When your change touches work tracked as a ticket, the cases tied to it carry it in `refs` (a comma-separated string of external IDs). Match those against the ticket the change belongs to. `milestone_id` is a useful second cut when the work is milestone-scoped.
-- **Title and content search.** Match the endpoint paths, event names, and error strings from your Step 2 behavior list against case titles and their `custom_` fields.
+- **Relevance search on the behavior list.** Search by case content — `search_suite_cases` with the `suite_id` when Step 1 resolved a multi-suite project's suite, otherwise `search_cases` with `project_ids` set to `[project_id]` — one search per behavior on your Step 2 list, with `subject` stating the behavior as free text. The search is blended semantic and lexical over case content (title, steps, description, etc.), so the exact strings on the list — an endpoint path, an event name, an error message — are strong queries: a case asserting that string surfaces even from a section you would never have connected to the change. The optional `hard_filter` narrows eligibility before ranking: `labels` (e.g. `["regression"]`) searches just the stated guard-rail set, and `jira_issue` with the change's Jira key pulls the linked cases directly. `relevance_score` (0–100) orders results within a single search only; it has no absolute meaning, so never apply a fixed score cutoff — judge relevance by reading the case. Results page by cursor, not `offset`/`limit`: pass the response's `next_page_cursor` back as `page_cursor`; when every hit on a page is relevant, the relevant set probably continues, so fetch the next page and stop only when relevance visibly tails off. The search also needs TestRail's AI features enabled — a 403 means the project (or the suite's project) has AI disabled, so tell the user and fall back to the other angles rather than retrying.
 
-Call `get_cases` with the `project_id` (and `suite_id` if multi-suite) and the matching `section_id` for each relevant section. Paginate through the full result set using `offset` and `limit` (max 250) — do not stop on the first page. When the response's `size` equals `limit`, fetch the next page by setting `offset = previous_offset + limit`.
+Call `get_cases` with the `project_id` (and `suite_id` if multi-suite) and the matching `section_id` for each relevant section. Paginate through the full result set using `offset` and `limit` (max 250) — do not stop on the first page. When the response's `size` equals `limit`, fetch the next page by setting `offset = previous_offset + limit`. Relevance search hits are leads, not an enumeration — the ranked subset can omit a guarding case, so when hits cluster in a section outside the ones you matched, pull in that section's subtree rather than just the hits.
 
 Cast wider than feels necessary. A case that turns out to be unaffected costs one line in the brief; a case you never fetched is the regression you ship.
 
@@ -232,6 +232,141 @@ Behavior the change touches or introduces that no TestRail case protects.
 The cases, sections, or suite to run before merging, tightest first.
 ```
 
+### Step 7 — Offer the impact report (optional)
+
+The Step 6 report completes the core workflow. After delivering it, ask the user one question: whether they want an **impact report** — a standalone markdown file that quantifies this run against a baseline session: one making the same change from the request alone, without reading the guard-rail cases first.
+
+- If the user declines or doesn't answer, you're done. Never generate the impact report unprompted.
+- If the user accepts, follow **Generating the Impact Report** below.
+
+---
+
+## Generating the Impact Report (opt-in only)
+
+Everything this report needs is already in the conversation by the end of Step 6 — the contracts read and graded in Step 3, the confirmed brief, the code written in Step 4, and the annotations from Step 5. Nothing here requires tracking during Steps 1–6; reconstruct it retroactively.
+
+### R1 — Trace each contract through the final code
+
+The numbers are only credible if you actively trace each contract rather than guess. For every case in the confirmed brief:
+
+1. **Locate the code path** the contract constrains (the endpoint, function, handler, or query).
+2. **Walk the contract** and confirm the final code keeps it — the exact error string, status code, field names and casing, sort order, side effects and their ordering.
+3. **Classify the contract:**
+   - `shaped` — the code keeps it, and keeping it bent the implementation: the natural version of the change would have differed here. These are the spots Step 5 annotated, and each is a likely prevented regression.
+   - `held` — the code keeps it and would have kept it anyway; the contract never actively constrained this change.
+   - `repaired` — repair mode only: the pre-existing code broke it and this session fixed it. A regression caught, not just prevented.
+   - `at-risk` — preservation can't be confirmed from the code path alone (asynchronous side effects, browser behavior, timing); carried from Step 6 and excluded from the rate.
+   - `intentional-break` — the user accepted a contract change under the intentional-break protocol; excluded from the rate and reported explicitly.
+
+Count only contracts graded **live** in Step 3 toward the rate; weak and unproven contracts appear in the report but never as hard constraints. If this trace finds a broken contract nobody has caught yet, fix the code now and classify it `repaired`.
+
+Count `N_prevented = N_shaped + N_repaired` — each is a place the change would have shipped a break in observable behavior without the case in context.
+
+### R2 — Deep links (optional)
+
+If the TestRail base URL (e.g. `https://company.testrail.io`) is known from context, link the project (`{base}/index.php?/projects/overview/{project_id}`) and cases (`{base}/index.php?/cases/view/{case_id}`) in the report. If it isn't, tell the user you are creating links and ask once; if the user doesn't provide it, omit links — don't guess URLs.
+
+### R3 — Compute the metrics, each with a confidence label
+
+Every number in the report carries one of four labels, so readers can tell hard data from estimates:
+
+|       Label       |                              Meaning                               |
+| ----------------- | ------------------------------------------------------------------ |
+| **Measured**      | Counted directly from this run (contracts read, files written).    |
+| **Self-verified** | Traced through the code in R1 — code analysis, not test execution. |
+| **Estimated**     | Derived from this run's contract analysis via the formulas below.  |
+| **Speculative**   | Industry-typical range; not derived from this run.                 |
+
+Compute:
+
+1. **Contract preservation** (Self-verified): `(N_shaped + N_held + N_repaired) / N_live_verifiable`, where `N_live_verifiable` is the live contracts minus at-risk and intentional breaks. This should be 100% — the gate exists to make it so. Anything less is unfinished work to surface in the report, never to bury.
+2. **Regressions prevented** (Estimated): `N_prevented`. The baseline session ships these — each `shaped` contract marks where the natural implementation differed from the contract, and each `repaired` one already had.
+3. **Rework avoided** (Estimated): `N_prevented × ~30 minutes` — the detect-diagnose-fix-reverify cycle for a regression caught in QA. A regression that escapes QA costs far more, so this is a conservative floor.
+4. **Coverage gaps surfaced** (Measured): the behaviors in the impact surface no TestRail case protects, from the brief and the Step 6 report. The baseline for this is zero — not because there are no gaps, but because nothing surfaces them.
+
+### R4 — Write the report file
+
+Write to `./regression-preventer-reports/impact-{change-slug}-{YYYYMMDD-HHMMSS}.md` (create the directory if needed). Fill every placeholder with real values from this run; use this structure:
+
+```markdown
+# Regression-Preventer Impact Report
+
+**Change:** {one line}
+**Date:** {YYYY-MM-DD}
+**TestRail Project:** {project name} (ID: {project_id})
+**Mode:** build | repair
+**Guard-rail cases consumed:** {N_cases} ({N_live} live, {N_weak} failing/flaky, {N_unproven} unproven)
+
+---
+
+## Headline
+
+This run made {change} under {N_live} live TestRail contracts.
+**{N_prevented} likely regressions did not ship** — {N_shaped} where a contract bent the implementation away from a break, {N_repaired} where existing code had already broken one and was repaired — self-verified by code-path tracing, not test execution.
+
+---
+
+## Metrics Summary
+
+|         Metric         |   This run    | Baseline (no guard rails) |  Confidence   |
+| ---------------------- | ------------- | ------------------------- | ------------- |
+| Contract preservation  | {rate}%       | unknown — unread          | Self-verified |
+| Regressions prevented  | {N_prevented} | ~{N_prevented} shipped    | Estimated     |
+| Rework avoided         | ~{time}h      | —                         | Estimated     |
+| Coverage gaps surfaced | {N_gaps}      | 0 (undiscovered)          | Measured      |
+
+---
+
+## Contract Outcomes
+
+### Shaped the implementation (regressions prevented)
+
+- C{id} — {contract} — {what the natural implementation would have done instead}
+
+### Repaired (regressions caught)
+
+- C{id} — {contract} — {what was broken and how it was fixed}
+
+### Held without constraint
+
+- C{id} — {contract}
+
+### At risk (excluded from the rate)
+
+- C{id} — {contract} — {why it can't be confirmed from the code path}
+
+### Intentional breaks (user-decided)
+
+- C{id} — {old contract} → {new contract} — {the user's ruling}
+
+### Weak or unproven (never hard constraints)
+
+- C{id} — {contract} — {grade and result history}
+
+*(Use "None" for empty groups. Link case IDs to TestRail if the base URL is known.)*
+
+---
+
+## Regressions Prevented by Guard-Rail Context
+
+| Case ID |             Contract preserved              |        The natural implementation would have         |
+| ------- | ------------------------------------------- | ---------------------------------------------------- |
+| C{id}   | {e.g. DELETE returns 200 + success payload} | {e.g. returned 204 No Content, failing the case}     |
+
+**Total: {N_prevented}**
+
+---
+
+## Caveats
+
+- Preservation is self-verified by tracing code paths, not by executing tests.
+- The baseline is the counterfactual of this same session without the case context, derived from the R1 binding-constraint analysis — not a measurement.
+- The rework figure assumes each regression is caught in QA; one that escapes costs more, so the estimate is a floor.
+- Generated automatically by testrail-regression-preventer at the user's request.
+```
+
+**After writing the file**, tell the user the path and give a three-line inline summary: the regressions prevented, the rework avoided, and the coverage gaps surfaced.
+
 ---
 
 ## Additive changes are not automatically safe
@@ -273,8 +408,10 @@ When you hit one:
 - **Always fetch live data** from TestRail before analyzing or implementing. Never fabricate test case content. If a search returns no cases for the impact surface, say so plainly in the brief — a surface with no coverage is a finding, not a green light, and the user may want to stop and write cases first.
 - **Don't paraphrase test-case content** into prose interpretations in the brief, the comments, or the report. Quote or summarize faithfully; don't reword in ways that drift from the literal assertion. A contract restated loosely is a contract you will break.
 - **Stop and ask** when the impact surface is unclear, when cases contradict each other, when a case's relevance is genuinely ambiguous, or when the change can't keep a contract — don't silently pick an interpretation.
+- **The impact report is opt-in only.** Generate it only when the user explicitly accepts the Step 7 offer — never unprompted, and never as a substitute for the Step 6 report.
+- **Never fabricate impact metrics.** Every number must come from the R1 trace and the R3 formulas. If the session was interrupted or the brief was never confirmed, say so in the report instead of inventing numbers; don't round generously or pick flattering values.
 - **Column-align every table.** Pad each cell with trailing spaces so the pipes line up, and pad the separator row to match.
 
 ---
 
-*testrail-regression-preventer v1*
+*testrail-regression-preventer v2*

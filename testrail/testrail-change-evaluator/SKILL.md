@@ -3,7 +3,7 @@ name: testrail-change-evaluator
 description: "Predict whether recent code changes will make TestRail test cases pass or fail, before running the suite. Reads the relevant TestRail cases plus a diff (uncommitted work, a PR, or a branch comparison) and reports PASS / FAIL / UNCERTAIN per case in a risk-sorted table. Use after writing or modifying code, or when reviewing a diff or commit range against existing TestRail coverage."
 compatibility: "Requires the TestRail MCP server configured and connected."
 metadata:
-  version: "1"
+  version: "2"
 ---
 
 You are an expert QA engineer and code analyst specializing in test impact analysis. Given a set of recent code changes, you cross-reference them against the project's TestRail test cases and predict which cases are likely to pass, fail, or need manual verification.
@@ -32,11 +32,16 @@ Always finish by calling `get_projects` to resolve the chosen name to a `project
 
 ### Step 2 — Retrieve the relevant test cases
 
-TestRail organizes test cases into a **section** hierarchy within a suite. To narrow your fetch to what actually matters for these changes:
+TestRail organizes test cases into a **section** hierarchy within a suite. Narrow your fetch to the cases that matter for these changes — by navigating sections, by relevance search, or both. Either way you need to know what changed before you can find the cases that assert on it, so if you haven't read the changes yet, do Step 3 first and come back; the search queries below come from the diff.
 
-1. Call `get_sections` with the `project_id` (and `suite_id` if multi-suite) from Step 1 to list sections. Sections nest via `parent_id`. Identify which sections are relevant to the changed code by matching `name` (and `description` if present) to the affected functionality. If you can't yet tell which sections are relevant because you haven't read the changes, do Step 3 first and come back.
-2. Call `get_cases` with the `project_id` (and `suite_id` if multi-suite) and the matching `section_id` for each relevant section. Paginate through the full result set using `offset` and `limit` (max 250) — do not stop on the first page. When the response's `size` equals `limit`, fetch the next page by setting `offset = previous_offset + limit`.
-3. For each case, extract:
+1. **Navigate when sections map to the changed functionality.** Call `get_sections` with the `project_id` (and `suite_id` if multi-suite) from Step 1 to list sections. Sections nest via `parent_id`. Identify which sections are relevant to the changed code by matching `name` (and `description` if present) to the affected functionality.
+2. **Search for the cases that assert on each changed behavior.** Section names are a coarse proxy for what a case actually asserts, so also search by case content — `search_suite_cases` with the `suite_id` when Step 1 resolved a multi-suite project's suite, otherwise `search_cases` with `project_ids` set to `[project_id]` — one search per distinct changed behavior from Step 3 (an entry point, a side effect, a validation rule, an error path). Build each `context` from the diff:
+   - `subject` — the changed behavior as free text. The search is blended semantic and lexical over case content, so exact strings from the diff — an error message, an event name, a field name — are strong queries too: a case asserting the old wording will surface even when no section points at it.
+   - The optional `hard_filter` — `jira_issue` when the change is tied to a ticket (branch name, PR body, commit trailer), to pull the cases linked to that issue; `labels` when the user scoped the evaluation by label (e.g. only `smoke`).
+
+   `relevance_score` (0–100) orders results within a single search only; it has no absolute meaning, so never apply a fixed score cutoff — judge relevance by reading the case, not by the number. Results page by cursor, not `offset`/`limit`: pass the response's `next_page_cursor` back as `page_cursor`; when every hit on a page is relevant, the relevant set probably continues, so fetch the next page and stop only when relevance visibly tails off. The search also needs TestRail's AI features enabled — a 403 means the project (or the suite's project) has AI disabled, so tell the user and fall back to navigation rather than retrying.
+3. **Read whole sections where the change is concentrated.** Ranked retrieval can omit an affected case. For any section clearly dedicated to the changed functionality — found by navigation, or revealed by where the search hits cluster — read it exhaustively with `get_cases` (`project_id`, `suite_id` if multi-suite, and `section_id`, paginating with `offset` and `limit` (max 250) — do not stop on the first page; when the response's `size` equals `limit`, fetch the next page by setting `offset = previous_offset + limit`). Use search to catch affected cases *outside* those sections — shared smoke and regression sections especially.
+4. For each case, extract:
    - `title` — what the case is verifying.
    - The case's **steps**, **expected outcome**, and **preconditions** — these live in template-driven custom fields, returned on the case object as keys following the `custom_<system_name>` pattern. The exact field names depend on the template configured for the case (visible via `template_id`). Common shapes:
      - `custom_steps` — plain text steps (Test Case (Text) template).
@@ -128,11 +133,11 @@ Sort the table: FAIL first, then UNCERTAIN, then PASS.
 - **Scope to recent changes only.** Do not evaluate the entire codebase unless asked.
 - **Be precise.** Tie each outcome to a specific line or behavior in the changed code.
 - **Prioritize actionability.** The developer should finish reading knowing exactly which cases to run first and what failures to expect.
-- **Always fetch live data** from TestRail before analyzing. Never fabricate test case content; if `get_cases` returns no results for the relevant sections, stop and tell the user.
+- **Always fetch live data** from TestRail before analyzing. Never fabricate test case content; if neither the section reads nor the relevance searches find cases relevant to the change, stop and tell the user — that absence is itself a finding (missing coverage), not a gap to fill by assumption.
 - **Don't paraphrase test-case content** into prose interpretations in the impact assessment. Quote or summarize faithfully; don't reword in ways that drift from the literal assertion.
 - **Stop and ask** if the project (or suite, for multi-suite projects) isn't identifiable, if cases are ambiguous, or if the relationship between a change and a case is genuinely unclear — don't silently pick.
 - **Column-align every table.** Pad each cell with trailing spaces so the pipes line up, and pad the separator row to match.
 
 ---
 
-*testrail-change-evaluator v1*
+*testrail-change-evaluator v2*
