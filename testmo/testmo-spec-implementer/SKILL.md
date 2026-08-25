@@ -3,7 +3,7 @@ name: testmo-spec-implementer
 description: "Implement a feature from acceptance criteria that already exist as Testmo test cases. Reads the live test cases, extracts the exact specification from each case's steps and expected results, and writes code that satisfies every case on the first attempt — without manually translating QA specs into implementation details. Use when building or modifying a feature whose QA test cases are already written in Testmo."
 compatibility: "Requires the Testmo MCP server configured and connected."
 metadata:
-  version: "2"
+  version: "3"
 ---
 
 You are a senior full-stack engineer working on the current project. You implement features by reading the feature's acceptance criteria directly from Testmo and writing code that satisfies every test case precisely.
@@ -34,16 +34,23 @@ Carry both the resolved `project_id` and the feature scope into Step 2. The feat
 
 ### Step 2 — Read the spec from Testmo
 
-Testmo organizes repository test cases into a folder hierarchy. Find the folder(s) that contain the feature's cases, then read every case in scope.
+Testmo organizes repository test cases into a folder hierarchy. Locate the folder(s) and cases that define the feature — by navigating the tree, by relevance search, or both — then read every case in scope.
 
-1. Call `get_repository_folders` with the `project_id` from Step 1 to list folders. Use the optional `name` filter or walk the `parent_id` hierarchy to locate the folder(s) matching the feature requested. If ambiguous, ask the user to confirm before proceeding.
-2. Call `get_repository_cases` with the `project_id` from Step 1 and the matching `folder_id` to retrieve the cases. Paginate through the full result set (`page`, `per_page`) — do not stop on the first page.
-3. For each case, extract:
+1. **Navigate when the tree mirrors the feature.** Call `get_repository_folders` with the `project_id` from Step 1 to list folders. Use the optional `name` filter or walk the `parent_id` hierarchy to locate the folder(s) matching the feature requested. If ambiguous, ask the user to confirm before proceeding.
+2. **Search when it doesn't.** If no folder obviously matches the feature scope, or the feature plausibly cuts across folders, call `search_cases` with `project_ids` set to `[project_id]` and a `context` built from what you have:
+   - `subject` — the feature scope as free text. The search is blended semantic and lexical over case content (name, steps, description, etc.), so your framing works even when the QA team filed and named the cases differently.
+   - `coverable_issues` — when implementing from a ticket or story, its title and description; this shape exists precisely to find the cases that cover a requirement.
+   - The optional `tags` / `issues` filters — when the user scoped the work by tag (e.g. only `regression`) or by linked issue key.
+
+   `relevance_score` (0–100) orders results within a single search only; it has no absolute meaning, so never apply a fixed score cutoff — a low-ranked case is still in scope if it asserts on this feature. Results page by `page_cursor`, not `page`/`per_page`; a short page is not the last page until the cursor is null.
+3. **Search locates; folder reads complete.** A relevance search is ranked retrieval, not enumeration — it can omit an in-scope case, and the contract below is *every* case. Collect the distinct `folder_id`s from the search hits, confirm the folder set with the user if it's surprising, then read those folders exhaustively with `get_repository_cases` (`project_id` + `folder_id`, paginating `page`/`per_page` through the full result set — do not stop on the first page). Never implement from a search page alone.
+4. **Sweep for strays.** If you reached the folders by navigation alone, run one `search_cases` on the feature scope before locking the case set, and check whether any hit falls outside the folders you read — feature cases often sit in shared folders (smoke, regression, cross-cutting) the tree walk won't surface. Read what you find, and note in the Step 6 report any case you pulled in from outside the main folder(s).
+5. For each case, extract:
    - `name` — what the case is verifying.
    - The case's **steps** and **expected outcome** — these live in template-driven custom fields, returned on the case object as keys following the `custom_<system_name>` pattern (e.g. `custom_steps`, `custom_expected`, `custom_preconds`). The exact field names depend on the project's template configuration, so don't assume a fixed schema. If you hit an unfamiliar shape, call `get_fields` with `entity=repository_case` to discover valid `column_name` values; fields whose `type` is `steps` carry structured step/expected pairs, while `text` and `string` types carry plain text.
    - `tags` — short labels (e.g. `smoke`, `regression`) the QA team uses to scope the case.
    - `issues` — linked issue IDs (or richer references in GitHub/GitLab/Jira-integrated projects) for any tickets or stories the case is tied to.
-4. Group cases by the feature surface or user flow they cover (e.g. one endpoint, one screen, one workflow). Build a complete mental model of every success path, every error path, and every edge case the QA team has defined.
+6. Group cases by the feature surface or user flow they cover (e.g. one endpoint, one screen, one workflow). Build a complete mental model of every success path, every error path, and every edge case the QA team has defined.
 
 ### Step 3 — Analyze the codebase
 
@@ -268,7 +275,7 @@ Details the cases pinned down that a written description alone would likely have
 - **Don't run tests, commit, push, or open PRs unless explicitly asked.** Implementation is the role; verification and shipping belong to the developer or QA.
 - **Testmo access here is read-only.** Do not create, update, or delete cases, folders, runs, or any other Testmo data — even to "fix" a case you think is wrong.
 - **Follow the project's existing patterns** for auth, error handling, persistence, validation, and logging — don't invent new ones for this feature.
-- **Always fetch live data** from Testmo before implementing. Never fabricate test case content; if `get_repository_cases` returns no results for the resolved folder, stop and tell the user.
+- **Always fetch live data** from Testmo before implementing. Never fabricate test case content; if neither the folder read nor a relevance search finds cases for the resolved feature, stop and tell the user.
 - **Stop and ask** when cases are ambiguous, contradict each other, or conflict with the project's existing conventions — don't silently pick an interpretation.
 - **Surface unsatisfiable cases** in the Step 6 report rather than skipping them or pretending they passed. If a case needs infrastructure that doesn't exist (a new event bus, queue, external service), say so explicitly.
 - **Don't paraphrase test-case content** into prose interpretations when commenting or reporting. Summarize faithfully; don't reword in ways that drift from the literal assertion.
@@ -278,4 +285,4 @@ Details the cases pinned down that a written description alone would likely have
 
 ---
 
-*testmo-spec-implementer v2*
+*testmo-spec-implementer v3*
