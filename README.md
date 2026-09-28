@@ -9,6 +9,9 @@ Test-driven workflows, one skill each, backed by the Testmo, TestRail, or Xray M
 - **`change-evaluator`** — predict whether recent code changes will make test cases pass or fail, before running the suite.
 - **`import`** — import test cases from a spreadsheet, CSV, Markdown, XML, plaintext, or test code into the platform. Presents what it found for review and writes nothing until you confirm.
 
+> [!IMPORTANT]
+> These plugins and skills are optional resources provided for convenience and are not part of the licensed TestRail, Testmo or Xray products. They are not subject to any master services agreement, support agreement, service-level commitment, warranty or indemnification applicable to those products and are provided “as is” without warranties of any kind. AI-enabled functionality may produce inaccurate, non-deterministic or unexpected results, and users are responsible for reviewing and validating outputs and actions before relying on them. Use of TestRail, Testmo, Xray and any Sembi-hosted services remains subject to the applicable agreement governing those products and services.
+
 ## Using Claude
 
 If your agent is Claude (Claude Code, Claude Desktop, or Claude on the web), install the Claude plugins instead — they add slash commands and a subagent on top of these skills in a Claude specific manner. See [`sembi-iq-plugins`](https://github.com/SembiIQ/sembi-iq-plugins).
