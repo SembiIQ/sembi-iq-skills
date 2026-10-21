@@ -17,7 +17,7 @@ If your agent is Claude (Claude Code, Claude Desktop, or Claude on the web), ins
 
 ### Configure the Sembi MCP Server
 
-These skills call the remote Sembi MCP server's tools, so you must have the matching server connected — **Testmo** for the Testmo skills, **TestRail** for the TestRail skills, **Xray** for the Xray skills.
+These skills call the remote Sembi MCP server's tools, so you must have the matching server connected — **Testmo** for the Testmo skills, **TestRail** for the TestRail skills, **Xray** for the Xray skills. Users should grant only the MCP permissions necessary for the workflows they intend to use and should use read-only access where write access is not required.
 
 **For TestRail**, follow the MCP connection steps at: [https://testrail.sembi.com/](https://testrail.sembi.com/)
 
@@ -163,8 +163,14 @@ The `import` skills are the exception — they are marked user-invoked only, so 
 
 ## Support and Disclaimer
 
-These plugins and skills are optional resources provided for convenience and are not part of the licensed TestRail, Testmo or Xray products. They are not subject to any master services agreement, support agreement, service-level commitment, warranty or indemnification applicable to those products and are provided “as is” without warranties of any kind.
+These plugins and skills are optional resources provided for convenience and are not part of the licensed TestRail, Testmo or Xray products. The plugins and skills themselves are not covered by the support obligations, service-level commitments, warranties or indemnification applicable to those products and are provided “as is” without warranties of any kind. Use of TestRail, Testmo, Xray and any Sembi-hosted services, including the applicable MCP service, remains subject to the agreement governing the applicable product or service.
 
-AI-enabled functionality may produce inaccurate, non-deterministic or unexpected results, and users are responsible for reviewing and validating outputs and actions before relying on them. Use of TestRail, Testmo, Xray and any Sembi-hosted services remains subject to the applicable agreement governing those products and services.
+AI-enabled functionality may produce inaccurate, incomplete, non-deterministic or unexpected results. Plugins and skills may enable an AI agent, where authorized by the user and the applicable agent or MCP configuration, to perform actions or make changes in the user’s environment. Users are responsible for configuring appropriate access permissions and for reviewing and validating outputs and actions before relying on or deploying them.
+
+Use of a third-party AI model, agent, platform or service is subject to the applicable third party’s terms and privacy practices. Sembi does not control or assume responsibility for third-party AI services.
 
 Claude is a trademark of Anthropic, PBC. These plugins and skills are provided by Sembi and are not affiliated with, sponsored by, or endorsed by Anthropic.
+
+## License / Trademark / Copyright
+
+Copyright © 2026 Sembi, Inc. All product names, trademarks and logos of Sembi and its affiliates remain the property of their respective owners. The Apache License 2.0 does not grant permission to use Sembi trademarks, service marks or logos except as necessary to identify the applicable software or its compatibility with Sembi products.
